@@ -156,7 +156,7 @@ export class RunScene implements Scene {
     this.movement.update(this.enemies, center.x, center.y, this.delta);
 
     this.combat.processAttacks(this.party, this.enemies, this.delta, (_enemy, index) => {
-      this.pickups.push(createPickup(this.enemies[index].x, this.enemies[index].y, 12));
+      this.pickups.push(createPickup(_enemy.x, _enemy.y, 12));
       this.enemies.splice(index, 1);
     });
 
