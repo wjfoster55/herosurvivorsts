@@ -21,6 +21,8 @@ export const Tuning = {
   },
   camera: {
     lerp: 0.12,
+    marginX: 120,
+    marginY: 80,
   },
   enemies: {
     separationRadius: 28,

@@ -96,12 +96,20 @@ export class RunScene implements Scene {
   }
 
   private updateCamera(center: { x: number; y: number }) {
-    this.camera.x += (center.x - this.camera.x) * Tuning.camera.lerp;
-    this.camera.y += (center.y - this.camera.y) * Tuning.camera.lerp;
+    const targetX = this.clampWithinMargin(this.camera.x, center.x, Tuning.camera.marginX);
+    const targetY = this.clampWithinMargin(this.camera.y, center.y, Tuning.camera.marginY);
+    this.camera.x += (targetX - this.camera.x) * Tuning.camera.lerp;
+    this.camera.y += (targetY - this.camera.y) * Tuning.camera.lerp;
     const { width, height } = this.game.renderer.app.renderer;
     this.view.updateCamera(this.camera, { width, height });
     this.heroRenderer.container.position.set(this.view.world.position.x, this.view.world.position.y);
     this.background.update(this.camera.x, this.camera.y);
+  }
+
+  private clampWithinMargin(current: number, desired: number, margin: number) {
+    if (desired > current + margin) return desired - margin;
+    if (desired < current - margin) return desired + margin;
+    return current;
   }
 
   private handleEnemyKilled = (enemy: Enemy, index: number, sourceHero?: number) => {

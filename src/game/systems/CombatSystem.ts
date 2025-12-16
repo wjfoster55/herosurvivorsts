@@ -178,7 +178,7 @@ export class CombatSystem {
     projectiles: ProjectileSystem,
     effect?: ProjectileEffect
   ) {
-    const speed = Tuning.projectiles.baseSpeed * 0.75;
+    const speed = Tuning.projectiles.baseSpeed * 0.58;
     const projectile: Projectile = {
       kind: ProjectileKind.Boomerang,
       x: hero.position.x,
@@ -191,7 +191,7 @@ export class CombatSystem {
       pierce: 2,
       fromHero: heroIndex,
       source: hero.powerset,
-      maxTravel: hero.stats.range,
+      maxTravel: hero.stats.range * 2,
       traveled: 0,
       returning: false,
       originX: hero.position.x,
