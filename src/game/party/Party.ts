@@ -1,3 +1,4 @@
+import { Tuning } from '../tuning';
 import { PowersetId } from '../powers/PowersetId';
 import { Hero, HeroStats } from './Hero';
 
@@ -5,7 +6,7 @@ export class Party {
   heroes: Hero[];
   activeIndex = 0;
   swapCooldown = 0;
-  readonly swapCooldownDuration = 0.8;
+  readonly swapCooldownDuration = Tuning.combat.swapCooldown;
 
   constructor(powersets: [PowersetId, PowersetId, PowersetId]) {
     const baseStats: HeroStats = {
@@ -44,13 +45,15 @@ export class Party {
     const center = this.activeHero.position;
     const followers = this.heroes.filter((_, i) => i !== this.activeIndex);
     const offsets = [
-      { x: -30, y: 26 },
-      { x: 30, y: 26 },
+      { x: -Tuning.hero.followerOffset, y: Tuning.hero.followerOffset },
+      { x: Tuning.hero.followerOffset, y: Tuning.hero.followerOffset },
     ];
-    followers.forEach((hero, idx) => {
-      hero.position.x = center.x + offsets[idx].x;
-      hero.position.y = center.y + offsets[idx].y;
-    });
+    for (let i = 0; i < followers.length; i++) {
+      const hero = followers[i];
+      const off = offsets[i];
+      hero.position.x = center.x + off.x;
+      hero.position.y = center.y + off.y;
+    }
   }
 
   getPartyCenter() {

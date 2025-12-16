@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Graphics } from 'pixi.js';
 import { Game } from '../Game';
 import { Scene } from '../SceneManager';
 import { Enemy } from '../entities/Enemy';
@@ -6,6 +6,7 @@ import { Pickup, createPickup } from '../entities/Pickup';
 import { Party } from '../party/Party';
 import { POWERS, randomPowerset } from '../powers/PowersetRegistry';
 import { PowersetId } from '../powers/PowersetId';
+import { ProjectileSystem } from '../systems/ProjectileSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { CollisionSystem } from '../systems/CollisionSystem';
 import { LevelSystem } from '../systems/LevelSystem';
@@ -14,17 +15,19 @@ import { SpawnSystem } from '../systems/SpawnSystem';
 import { BackgroundRenderer } from '../render/BackgroundRenderer';
 import { HeroRenderer } from '../render/HeroRenderer';
 import { RunHud } from './RunHud';
+import { Tuning } from '../tuning';
+import { WorldView } from '../render/WorldView';
+import { PartyController } from '../systems/PartyController';
 
 export class RunScene implements Scene {
   private game: Game;
   private party: Party;
   private enemies: Enemy[] = [];
   private pickups: Pickup[] = [];
+  private projectiles = new ProjectileSystem();
   private background = new BackgroundRenderer();
   private heroRenderer = new HeroRenderer();
-  private world = new Container();
-  private enemyGraphics: Graphics[] = [];
-  private pickupGraphics: Graphics[] = [];
+  private view = new WorldView();
   private hud = new RunHud();
 
   private movement = new MovementSystem();
@@ -32,7 +35,12 @@ export class RunScene implements Scene {
   private collision = new CollisionSystem();
   private spawn = new SpawnSystem();
   private levelSystem = new LevelSystem();
+  private partyController = new PartyController();
   private delta = 0;
+  private camera = { x: 0, y: 0 };
+  private swapFlashTimer = 0;
+  private swapRingTimer = 0;
+  private debugVisible = false;
 
   constructor(game: Game, starterPowerset: PowersetId) {
     this.game = game;
@@ -44,23 +52,27 @@ export class RunScene implements Scene {
     this.party = new Party(powers);
     this.party.activeHero.position = { x: 0, y: 0 };
     this.party.layoutHeroes();
+    this.camera = { ...this.party.getPartyCenter() };
   }
 
   enter(): void {
     this.game.renderer.clearLayers();
     const { entityLayer, uiLayer, backgroundLayer } = this.game.renderer;
     backgroundLayer.addChild(this.background.container);
-    entityLayer.addChild(this.world);
+    entityLayer.addChild(this.view.world);
     entityLayer.addChild(this.heroRenderer.container);
     uiLayer.addChild(this.hud.container);
+    uiLayer.addChild(this.view.vignette);
+    this.hud.bindParty(this.party);
     this.buildHeroes();
   }
 
   exit(): void {
-    this.world.removeFromParent();
+    this.view.world.removeFromParent();
     this.heroRenderer.container.removeFromParent();
     this.hud.container.removeFromParent();
     this.background.container.removeFromParent();
+    this.view.vignette.removeFromParent();
   }
 
   private buildHeroes() {
@@ -84,65 +96,51 @@ export class RunScene implements Scene {
   }
 
   private updateCamera(center: { x: number; y: number }) {
+    const targetX = this.clampWithinMargin(this.camera.x, center.x, Tuning.camera.marginX);
+    const targetY = this.clampWithinMargin(this.camera.y, center.y, Tuning.camera.marginY);
+    this.camera.x += (targetX - this.camera.x) * Tuning.camera.lerp;
+    this.camera.y += (targetY - this.camera.y) * Tuning.camera.lerp;
     const { width, height } = this.game.renderer.app.renderer;
-    this.world.position.set(width / 2 - center.x, height / 2 - center.y);
-    this.heroRenderer.container.position.set(this.world.position.x, this.world.position.y);
-    this.background.update(center.x, center.y);
+    this.view.updateCamera(this.camera, { width, height });
+    this.heroRenderer.container.position.set(this.view.world.position.x, this.view.world.position.y);
+    this.background.update(this.camera.x, this.camera.y);
   }
 
-  private renderEnemies() {
-    const needed = this.enemies.length;
-    while (this.enemyGraphics.length < needed) {
-      const g = new Graphics();
-      g.circle(0, 0, 14).fill(0xc0392b).stroke({ color: 0xffffff, width: 2, alpha: 0.3 });
-      this.world.addChild(g);
-      this.enemyGraphics.push(g);
-    }
-    for (let i = 0; i < this.enemyGraphics.length; i++) {
-      const g = this.enemyGraphics[i];
-      if (i >= this.enemies.length) {
-        g.visible = false;
-        continue;
+  private clampWithinMargin(current: number, desired: number, margin: number) {
+    if (desired > current + margin) return desired - margin;
+    if (desired < current - margin) return desired + margin;
+    return current;
+  }
+
+  private handleEnemyKilled = (enemy: Enemy, index: number, sourceHero?: number) => {
+    if (sourceHero !== undefined) {
+      const hero = this.party.heroes[sourceHero];
+      if (hero.powerset === PowersetId.Fire && hero.power.burnExplosion > 0) {
+        this.explode(enemy.x, enemy.y, 60, hero.power.burnExplosion);
       }
+    }
+    this.pickups.push(createPickup(enemy.x, enemy.y, 12));
+    this.enemies.splice(index, 1);
+  };
+
+  private explode(x: number, y: number, radius: number, damage: number) {
+    const r2 = radius * radius;
+    for (let i = 0; i < this.enemies.length; i++) {
       const enemy = this.enemies[i];
-      g.visible = enemy.hp > 0;
-      g.position.set(enemy.x, enemy.y);
-    }
-  }
-
-  private renderPickups() {
-    const needed = this.pickups.length;
-    while (this.pickupGraphics.length < needed) {
-      const g = new Graphics();
-      g.circle(0, 0, 8).fill(0x2980b9).stroke({ color: 0xffffff, width: 1 });
-      this.world.addChild(g);
-      this.pickupGraphics.push(g);
-    }
-    for (let i = 0; i < this.pickupGraphics.length; i++) {
-      const g = this.pickupGraphics[i];
-      if (i >= this.pickups.length) {
-        g.visible = false;
-        continue;
-      }
-      const pickup = this.pickups[i];
-      g.visible = true;
-      g.position.set(pickup.x, pickup.y);
-    }
-  }
-
-  private handleSwap() {
-    const input = this.game.input;
-    if (input.wasPressed(' ') || input.wasPressed('space') || input.wasPressed('shift')) {
-      if (this.party.swap()) {
-        const hero = this.party.activeHero;
-        POWERS[hero.powerset].swapSkill(hero, this.enemies);
+      const dx = enemy.x - x;
+      const dy = enemy.y - y;
+      if (dx * dx + dy * dy <= r2) {
+        enemy.hp -= damage;
       }
     }
-    this.party.updateSwapCooldown(this.delta);
   }
 
   update(deltaMs: number): void {
     this.delta = deltaMs / 1000;
+    this.swapFlashTimer = Math.max(0, this.swapFlashTimer - this.delta);
+    this.swapRingTimer = Math.max(0, this.swapRingTimer - this.delta);
+    this.partyController.tickState(this.party, this.delta);
+
     if (this.levelSystem.pausedForChoice) {
       this.handleLevelSelection();
       this.hud.update(this.party, this.levelSystem);
@@ -150,15 +148,20 @@ export class RunScene implements Scene {
       return;
     }
 
+    this.partyController.updateMovement(this.party, this.game.input, this.delta);
+    const swapped = this.partyController.trySwap(this.party, this.game.input);
+    if (swapped) {
+      const hero = this.party.activeHero;
+      POWERS[hero.powerset].swapSkill(hero, this.enemies);
+      this.swapFlashTimer = Tuning.combat.swapFlashDuration;
+      this.swapRingTimer = Tuning.combat.swapRingDuration;
+    }
     const center = this.party.getPartyCenter();
-    this.handleSwap();
+    const aggroFactor = this.party.activeHero.aggroDropTimer > 0 ? 0.5 : 1;
     this.spawn.update(this.enemies, center.x, center.y, this.delta);
-    this.movement.update(this.enemies, center.x, center.y, this.delta);
+    this.movement.update(this.enemies, center.x, center.y, this.delta, aggroFactor);
 
-    this.combat.processAttacks(this.party, this.enemies, this.delta, (_enemy, index) => {
-      this.pickups.push(createPickup(_enemy.x, _enemy.y, 12));
-      this.enemies.splice(index, 1);
-    });
+    this.combat.update(this.party, this.enemies, this.projectiles, this.delta, this.handleEnemyKilled);
 
     this.collision.handleEnemyContact(this.party, this.enemies, this.delta);
     this.collision.collectPickups(this.party, this.pickups, (pickup, idx) => {
@@ -169,11 +172,28 @@ export class RunScene implements Scene {
 
     this.cleanDeadEnemies();
     this.updateHeroSprites();
-    this.renderEnemies();
-    this.renderPickups();
+    this.view.renderEnemies(this.enemies);
+    this.view.renderPickups(this.pickups);
+    this.view.renderProjectiles(this.projectiles);
+    this.view.renderEffects(this.party.activeHero, this.swapRingTimer, this.swapFlashTimer);
     this.updateCamera(center);
-    this.hud.update(this.party, this.levelSystem);
+    this.updateDebugToggle();
+    this.hud.update(this.party, this.levelSystem, {
+      fps: 1000 / deltaMs,
+      enemies: this.enemies.length,
+      projectiles: this.projectiles.projectiles.length,
+      heroName: this.party.activeHero.name,
+      damage: this.party.activeHero.stats.damage,
+      attackRate: this.party.activeHero.stats.attackRate,
+    });
     this.game.input.endFrame();
+  }
+
+  private updateDebugToggle() {
+    if (this.game.input.wasPressed(Tuning.debug.toggleKey)) {
+      this.debugVisible = !this.debugVisible;
+      this.hud.setDebugVisible(this.debugVisible);
+    }
   }
 
   private cleanDeadEnemies() {
@@ -192,6 +212,9 @@ export class RunScene implements Scene {
         const choice = this.levelSystem.selectChoice(i);
         choice.apply(this.party.activeHero);
       }
+    }
+    if (input.wasPressed('escape') || input.wasPressed('esc')) {
+      this.levelSystem.skipChoice();
     }
   }
 }

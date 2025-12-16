@@ -5,6 +5,7 @@ export interface LevelUpSkill {
   name: string;
   description: string;
   apply: (hero: Hero) => void;
+  preview: (hero: Hero) => string;
 }
 
 export function buffDamage(amount: number): LevelUpSkill {
@@ -15,6 +16,7 @@ export function buffDamage(amount: number): LevelUpSkill {
     apply: (hero) => {
       hero.stats.damage += amount;
     },
+    preview: (hero) => `Damage ${hero.stats.damage.toFixed(1)} → ${(hero.stats.damage + amount).toFixed(1)}`,
   };
 }
 
@@ -25,6 +27,11 @@ export function buffAttackRate(percent: number): LevelUpSkill {
     description: 'Faster basic attacks.',
     apply: (hero) => {
       hero.stats.attackRate *= 1 + percent / 100;
+    },
+    preview: (hero) => {
+      const current = hero.stats.attackRate;
+      const next = current * (1 + percent / 100);
+      return `Rate ${current.toFixed(2)} → ${next.toFixed(2)}`;
     },
   };
 }
@@ -37,6 +44,7 @@ export function buffRange(amount: number): LevelUpSkill {
     apply: (hero) => {
       hero.stats.range += amount;
     },
+    preview: (hero) => `Range ${hero.stats.range} → ${hero.stats.range + amount}`,
   };
 }
 
@@ -49,5 +57,6 @@ export function buffHp(amount: number): LevelUpSkill {
       hero.stats.maxHp += amount;
       hero.currentHp += amount;
     },
+    preview: (hero) => `HP ${hero.stats.maxHp} → ${hero.stats.maxHp + amount}`,
   };
 }
