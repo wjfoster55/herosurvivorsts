@@ -1,0 +1,19 @@
+{
+  "name": "herosurvivorsts",
+  "version": "1.0.0",
+  "description": "HeroSurvivors - PixiJS vampire-survivors-like demo",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "pixi.js": "^8.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9"
+  }
+}
