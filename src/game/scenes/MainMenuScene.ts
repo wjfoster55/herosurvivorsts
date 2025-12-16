@@ -98,5 +98,6 @@ export class MainMenuScene implements Scene {
       this.game.sceneManager.setScene(new RunScene(this.game, selected));
     }
     this.background.update(0, 0);
+    this.game.input.endFrame();
   }
 }
