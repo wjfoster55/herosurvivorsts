@@ -6,6 +6,7 @@ export interface Enemy {
   damage: number;
   radius: number;
   slowTimer: number;
+  slowAmount: number;
   stunTimer: number;
   burnTimer: number;
   burnDamage: number;
@@ -20,6 +21,7 @@ export function createEnemy(x: number, y: number): Enemy {
     damage: 6,
     radius: 14,
     slowTimer: 0,
+    slowAmount: 0.5,
     stunTimer: 0,
     burnTimer: 0,
     burnDamage: 0,

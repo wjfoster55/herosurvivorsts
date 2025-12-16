@@ -34,4 +34,9 @@ export class LevelSystem {
     this.pausedForChoice = false;
     return chosen;
   }
+
+  skipChoice() {
+    this.pendingChoices = [];
+    this.pausedForChoice = false;
+  }
 }

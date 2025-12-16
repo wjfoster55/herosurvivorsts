@@ -7,6 +7,7 @@ export class CollisionSystem {
 
   handleEnemyContact(party: Party, enemies: Enemy[], delta: number) {
     const active = party.activeHero;
+    if (active.invisibleTimer > 0) return;
     for (const enemy of enemies) {
       if (enemy.hp <= 0) continue;
       const dx = enemy.x - active.position.x;
